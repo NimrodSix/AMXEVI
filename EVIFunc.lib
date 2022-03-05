@@ -1,0 +1,344 @@
+PROGRAM_NAME='SONCA00F'
+(*   DATE:12/08/97    TIME:12:06:02    *)
+(***********************************************************)
+(*               CONSTANT DEFINITIONS GO BELOW             *)
+(***********************************************************)
+DEFINE_CONSTANT
+
+(* THE HMMM... LIST:
+	HOW TO DO CAMERA RAMPING?
+		1) HAVE TO REPEAT MOVEMENT CALL, RAMPING INDEPENDENT OF
+		DEVICE CODE & SPEED SENT WITH EACH CALL
+	***	2) SEPERATE SYSTEM CALL EMBEDDED THAT GETS MAINLINED
+		AND ADDS SPEED WITH WAITS
+
+
+(* !!                                 !! *)
+(* !! DO NOT OVERRIDE THESE CONSTANTS !! *)
+(* !!                                 !! *)
+
+(*
+
+#IF_NOT_DEFINED CAM_CONST
+#DEFINE CAM_CONST
+
+CAM_POWER         = 1
+CAM_POWER_ON      = 2
+CAM_POWER_OFF     = 3
+
+CAM_RESET         = 4
+CAM_INIT_NETWORK  = 5
+
+CAM_MOVE          = 6
+CAM_LEFT          = 7
+CAM_RIGHT         = 8
+CAM_UP            = 9
+CAM_DOWN          = 10
+CAM_TELE          = 11
+CAM_WIDE          = 12
+PAN_STOP          = 13
+TILT_STOP         = 14
+ZOOM_STOP         = 15
+
+AUTO_FOCUS        = 16
+MAN_FOCUS         = 17
+FOCUS_IN          = 18
+FOCUS_OUT         = 19
+
+AUTO_IRIS         = 20
+MAN_IRIS          = 21
+IRIS_OPEN         = 22
+IRIS_CLOSE        = 23
+IRIS_STOP         = 24
+AGC_ON            = 25
+AGC_OFF           = 26
+
+SHUTTER_OPEN      = 27
+SHUTTER_CLOSE     = 28
+AUTO_SHUTTER      = 29
+MAN_SHUTTER       = 30
+SHUTTER_STOP      = 31
+
+CAM_AUTOTRACKING  = 32
+AUTO_TIGHT        = 33
+AUTO_WIDE         = 34 
+AUTO_OFF          = 35
+
+CAM_IS_PRESET     = 36
+GET_PRESET        = 37
+SET_PRESET        = 38
+
+#END_IF
+
+(* DEFAULT PAN SPEED *)
+#IF_NOT_DEFINED SONCA000_PAN_SPEED
+SONCA000_PAN_SPEED        = $0D             (* 1-$18, $18 IS MAX *)
+#END_IF
+
+#IF_NOT_DEFINED SONCA000_MAX_PAN_SPEED
+SONCA000_MAX_PAN_SPEED    = $12             (* 1-$18, $18 IS MAX *)
+#END_IF
+
+(* DEFAULT TILT SPEED *)
+#IF_NOT_DEFINED SONCA000_TILT_SPEED
+SONCA000_TILT_SPEED       = $0A             (* 1-$14, $14 IS MAX *)
+#END_IF
+
+#IF_NOT_DEFINED SONCA000_MAX_TILT_SPEED
+SONCA000_MAX_TILT_SPEED   = $10             (* 1-$14, $14 IS MAX *)
+#END_IF
+
+(* DEFAULT ZOOM SPEED *)
+#IF_NOT_DEFINED SONCA000_ZOOM_SPEED
+SONCA000_ZOOM_SPEED       = $05             (* 1-8, 8 IS MAX *)
+#END_IF
+
+#IF_NOT_DEFINED SONCA000_MAX_ZOOM_SPEED
+SONCA000_MAX_ZOOM_SPEED   = $07             (* 1-8, 8 IS MAX *)
+#END_IF
+
+(***********************************************************)
+(*           VARIABLE DEFINITIONS GO BELOW                 *)
+(***********************************************************)
+DEFINE_VARIABLE
+
+CAM_PT_SPEED
+
+#IF_NOT_DEFINED SONCA_PRESET_STORE
+#DEFINE SONCA_PRESET_STORE
+PT_PRESET_STORE[32][6] (* 32 MAX PRESETS!!! *)
+Z_PRESET_STORE[32][4]
+PRESET_LOCATION
+#END_IF
+
+DEFINE_START
+PRESET_LOCATION = 0
+
+(***********************************************************)
+(*           SUBROUTINE DEFINITIONS GO BELOW               *)
+(***********************************************************)
+
+(**************************************)
+(* NAME: SONY D30 FUNCTION            *)
+(* PURPOSE: SYSTEM CALL LIKE FORMAT   *)
+(*          FOR FUNCTION OF D30       *)
+(**************************************)
+DEFINE_CALL 'EVIFUNC' (DEV,FUNC,DATA)
+{
+  IF(DEV=0)
+  {
+    SEND_STRING 0,"'DEVICE 0 - INVALID CAMERA',13,10"
+  }
+  ELSE
+  {
+    SELECT
+    {
+      ACTIVE (FUNC = CAM_RIGHT):
+      {
+        ON[DEV,CAM_MOVING]
+        ON[DEV,CAM_RIGHT]
+        CAM_PT_SPEED = 1
+        SYSTEM_CALL 'EVIRAMP' (DEV,CAM_PT_SPEED)
+        SEND_STRING 0,"'(EVI ',ITOA(DEV),'): PAN RIGHT',13,10"
+      }
+      ACTIVE (FUNC = CAM_DOWN):
+      {
+        ON[DEV,CAM_MOVING]
+        ON[DEV,CAM_DOWN]
+        CAM_PT_SPEED = 1
+        SYSTEM_CALL 'EVIRAMP' (DEV,CAM_PT_SPEED)
+        SEND_STRING 0,"'(EVI ',ITOA(DEV),'): TILT DOWN',13,10"
+      }
+      ACTIVE (FUNC = CAM_LEFT):  
+      {
+	ON[DEV,CAM_MOVING]
+        ON[DEV,CAM_LEFT]
+        CAM_PT_SPEED = 1
+        SYSTEM_CALL 'EVIRAMP' (DEV,CAM_PT_SPEED)
+        SEND_STRING 0,"'(EVI ',ITOA(DEV),'): PAN LEFT',13,10"
+      }
+      ACTIVE (FUNC = CAM_UP):
+      {
+	ON[DEV,CAM_MOVING]
+        ON[DEV,CAM_UP]
+        CAM_PT_SPEED = 1
+        SYSTEM_CALL 'EVIRAMP' (DEV,CAM_PT_SPEED)
+        SEND_STRING 0,"'(EVI ',ITOA(DEV),'): TILT UP',13,10"
+      }
+      ACTIVE (FUNC = TILT_STOP || FUNC = PAN_STOP):
+      {
+	OFF[DEV,CAM_MOVING]
+        OFF[DEV,CAM_LEFT]
+	OFF[DEV,CAM_RIGHT]
+	OFF[DEV,CAM_UP]
+	OFF[DEV,CAM_DOWN]
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$06,$01,CAM_PT_SPEED,
+                           CAM_PT_SPEED,$03,$03,$FF"
+        SEND_STRING 0,"'(EVI ',ITOA(DEV),'): PAN/TILT STOP',13,10"
+      }
+
+      ACTIVE (FUNC = FOCUS_FAR):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$38,$03,$FF" (* MAN *)
+        WAIT 1
+          SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$08,$02,$FF"
+        ON[DEV,FOCUS_FAR]
+        OFF[DEV,FOCUS_NEAR]
+        OFF[DEV,AUTO_FOCUS]
+      }
+      ACTIVE (FUNC = FOCUS_NEAR):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$38,$03,$FF" (* MAN *)
+        WAIT 1
+          SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$08,$03,$FF"
+        OFF[DEV,FOCUS_FAR]
+        ON[DEV,FOCUS_NEAR]
+        OFF[DEV,AUTO_FOCUS]
+      }
+      ACTIVE (FUNC = FOCUS_STOP):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$08,$00,$FF"
+        OFF[DEV,FOCUS_FAR]
+        OFF[DEV,FOCUS_NEAR]
+        OFF[DEV,AUTO_FOCUS]
+      }
+      ACTIVE (FUNC = ZOOM_TELE):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$07,
+                       $20+SONCA000_ZOOM_SPEED,$FF"
+        OFF[DEV,ZOOM_WIDE]
+        ON[DEV,ZOOM_TELE]
+        SEND_STRING 0,"ITOA(DEV),' - ZOOM TELE',13,10"
+      }
+      ACTIVE (FUNC = ZOOM_WIDE):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$07,
+                       $30+SONCA000_ZOOM_SPEED,$FF"
+        ON[DEV,ZOOM_WIDE]
+        OFF[DEV,ZOOM_TELE]
+        SEND_STRING 0,"ITOA(DEV),' - ZOOM WIDE',13,10"
+      }
+      ACTIVE (FUNC = ZOOM_STOP):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$07,$00,$FF"
+        OFF[DEV,ZOOM_WIDE]
+        OFF[DEV,ZOOM_TELE]
+        SEND_STRING 0,"ITOA(DEV),' - ZOOM STOP',13,10"
+      }
+      ACTIVE (FUNC = AUTO_FOCUS):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$38,$02,$FF"
+        ON[DEV,AUTO_FOCUS]
+      }
+      ACTIVE (FUNC = MAN_FOCUS):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$38,$03,$FF"
+        OFF[DEV,AUTO_FOCUS]
+      }
+      ACTIVE (FUNC = IRIS_OPEN):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$39,$03,$FF" (* MAN AE *)
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$0B,$02,$FF"
+        ON[DEV,IRIS_OPEN]
+        OFF[DEV,IRIS_CLOSE]
+        OFF[DEV,AUTO_IRIS]
+        OFF[DEV,AUTO_SHUTTER]
+      }
+      ACTIVE (FUNC = IRIS_CLOSE):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$39,$03,$FF" (* MAN AE *)
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$0B,$03,$FF"
+        OFF[DEV,IRIS_OPEN]
+        ON[DEV,IRIS_CLOSE]
+        OFF[DEV,AUTO_IRIS]
+        OFF[DEV,AUTO_SHUTTER]
+      }
+      ACTIVE (FUNC = IRIS_STOP):
+      {
+        (* NO STOP, IS IT A REPEATING FUNCTION??? *)
+        OFF[DEV,IRIS_OPEN]
+        OFF[DEV,IRIS_CLOSE]
+        OFF[DEV,AUTO_IRIS]
+        OFF[DEV,AUTO_SHUTTER]
+      }
+      ACTIVE (FUNC = AUTO_IRIS || FUNC = AUTO_SHUTTER): 
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$39,$00,$FF" (* AUTO AE *)
+        ON[DEV,AUTO_IRIS]
+        ON[DEV,AUTO_SHUTTER]
+      }
+      ACTIVE (FUNC = MAN_IRIS || FUNC = MAN_SHUTTER):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$39,$03,$FF" (* MAN AE *)
+        OFF[DEV,AUTO_IRIS]
+        OFF[DEV,AUTO_SHUTTER]
+      }
+      ACTIVE (FUNC = SHUTTER_OPEN):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$39,$03,$FF" (* MAN AE *)
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$0A,$03,$FF"
+        ON[DEV,SHUTTER_OPEN]
+        OFF[DEV,SHUTTER_CLOSE]
+        OFF[DEV,AUTO_SHUTTER]
+        OFF[DEV,AUTO_IRIS]
+      }
+      ACTIVE (FUNC = SHUTTER_CLOSE):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$39,$03,$FF" (* MAN AE *)
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$0A,$02,$FF"
+        OFF[DEV,SHUTTER_OPEN]
+        ON[DEV,SHUTTER_CLOSE]
+        OFF[DEV,AUTO_SHUTTER]
+        OFF[DEV,AUTO_IRIS]
+      }
+      ACTIVE (FUNC = SHUTTER_STOP):
+      {
+        (* NO STOP, IS IT A REPEATING FUNCTION??? *)
+        OFF[DEV,SHUTTER_OPEN]
+        OFF[DEV,SHUTTER_CLOSE]
+        OFF[DEV,AUTO_SHUTTER]
+        OFF[DEV,AUTO_IRIS]
+      }
+      ACTIVE (FUNC = HOME_POSITION):  
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$06,$04,$FF"
+        SEND_STRING 0,"ITOA(DEV),' - HOME',13,10"
+      }
+      ACTIVE (FUNC = SONCA000_RESET):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$06,$05,$FF"
+      }
+
+      ACTIVE (FUNC=SAVE_PRESET):
+      {
+        SEND_STRING 0,"'(PRESET) SENDING STORE STRING TO CAMERA',13,10"
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$09,$04,$47,$FF"
+        WAIT 4 SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$09,$06,$12,$FF"
+        PRESET_LOCATION = DATA
+        (* WAIT_UNTIL() *)
+      }
+
+      ACTIVE (FUNC >= PRESET1 && FUNC <= PRESET6):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$3F,$02,FUNC-PRESET1,$FF"
+        ON[DEV,FUNC]
+        SEND_STRING 0,"ITOA(DEV),' - PRESET ',ITOA(FUNC-PRESET1+1),13,10"
+      }
+      ACTIVE (FUNC >= (PRESET1|SAVE_PRESET_MASK) &&
+            FUNC <= (PRESET6|SAVE_PRESET_MASK)):
+      {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$04,$3F,$01,((FUNC&$FF)-PRESET1)$00,$FF"
+        ON[DEV,(FUNC&$FF)]
+        SEND_STRING 0,"ITOA(DEV),' - SAVE PRESET ',ITOA((FUNC&$FF)-PRESET1+1),13,10"
+      }
+
+      ACTIVE (FUNC = SONCA000_INIT_NETWORK):
+      {
+        SEND_STRING DEV,"$88,$01,$00,$01,$FF" (* CLEAR BUFFERS *)
+        SEND_STRING DEV,"$88,$30,$01,$FF"     (* RESET NETWORK *)
+      }
+      ACTIVE (1):
+        SEND_STRING 0,"'SONCA000: UNKNOWN CAMERA FUNCTION',13,10"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+PROGRAM_NAME='EVIRAMP'
+(*   DATE:12/08/97    TIME:12:06:02      *)
+(* SUPPORT FUNCTION FOR EVIFUNC.LIB      *)
+(* WHEN EVIFUNC TURNS ON CAMERA MOVEMENT *)
+(* IT SHOULD SET DATA TO 0... MAINLINED, *)
+(* THE EVIRAMP CALL WILL ADD TO SPEED    *)
+(* AND RECALL MOVEMENT UNTIL A RELEASE   *)
+(* TURNS OFF CAMERA MOVEMENT             *) 
+(***********************************************************)
+(*           SUBROUTINE DEFINITIONS GO BELOW               *)
+(***********************************************************)
+
+(**************************************)
+(* NAME: SONY EVI-D30 RAMP FUNCTION   *)
+(**************************************)
+DEFINE_CALL 'EVIRAMP' (DEV,DATA)
+{
+  IF[DEV,CAM_RIGHT]
+  {
+    WAIT 5
+    {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$06,$01,DATA,
+                           DATA,$02,$03,$FF"
+    }
+  }
+  IF[DEV,CAM_LEFT]
+  {
+    WAIT 5
+    {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$06,$01,DATA,
+                           DATA,$01,$03,$FF"
+    }
+  }
+  IF[DEV,CAM_DOWN]
+  {
+    WAIT 5
+    {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$06,$01,DATA,
+                           DATA,$03,$02,$FF"
+    }
+  }
+  IF[DEV,CAM_UP]
+  {
+    WAIT 5
+    {
+        SEND_STRING DEV,"$80|SONCA000_CAM_ADDR,$01,$06,$01,DATA,
+                           DATA,$03,$01,$FF"
+    }
+  }
+  WAIT 5
+  {
+    IF(DATA<$14)
+    {
+      DATA = DATA + 1
+    }
+  }
+}
